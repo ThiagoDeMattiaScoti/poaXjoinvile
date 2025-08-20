@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise Comparativa: Porto Alegre vs. Joinville</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A user-centric, single-page dashboard. The user first selects their profession (Programmer/Biomedical), which tailors the entire view. The structure uses a tabbed interface (Overview, Job Market, Salaries, Cost of Living, Financial Simulator) for progressive disclosure of information, preventing overwhelm. The core is the interactive Financial Simulator, allowing users to input their salary and see a personalized comparison of their disposable income. This task-oriented flow—from broad comparison to personal simulation—is designed to directly aid the user's decision-making process, which is the report's primary goal. -->
+    <!-- Visualization & Content Choices: Report Info -> Salaries (Programmer/Biomedical). Goal -> Compare salary ranges. Viz -> Grouped Bar Chart (Chart.js) for clear side-by-side comparison of min/avg/max potential. Interaction -> Tooltips on hover. Justification -> More intuitive than a table for comparing ranges. | Report Info -> Cost of Living breakdown. Goal -> Highlight the key differences in expenses. Viz -> Stacked Bar Chart (Chart.js). Interaction -> Tooltips on hover. Justification -> Effectively shows both the total cost and the proportional impact of each category, emphasizing the huge difference in grocery costs. | Report Info -> Final Net Disposable Income. Goal -> Provide a clear, personalized financial outcome. Viz -> Dynamic Horizontal Bar Chart (Chart.js). Interaction -> Chart updates in real-time based on user salary input. Justification -> Direct visual feedback makes the financial consequence of choosing a city immediately understandable. Textual content is presented in styled cards for readability. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7;
+            color: #3D352E;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 45vh;
+            max-height: 450px;
+        }
+        .btn-primary {
+            transition: all 0.3s ease;
+        }
+        .btn-primary.selected {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .tab-btn.active {
+            border-color: #6B8A7A;
+            color: #3D352E;
+            background-color: #F0EBE3;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#3D352E] mb-2">Porto Alegre vs. Joinville</h1>
+            <p class="text-lg md:text-xl text-[#6B8A7A]">Qual o seu próximo destino profissional?</p>
+        </header>
+
+        <main>
+            <section id="selection" class="text-center mb-12">
+                <h2 class="text-2xl font-bold mb-6">Comece selecionando sua área de atuação:</h2>
+                <div class="flex flex-col sm:flex-row justify-center items-center gap-6">
+                    <button id="btn-programmer" class="btn-primary w-full sm:w-64 text-lg font-bold py-4 px-6 bg-[#5A7D9A] text-white rounded-lg shadow-md hover:bg-[#4e6a82]">
+                        <span class="mr-2">💻</span> Sou Programador(a)
+                    </button>
+                    <button id="btn-biomedical" class="btn-primary w-full sm:w-64 text-lg font-bold py-4 px-6 bg-[#6B8A7A] text-white rounded-lg shadow-md hover:bg-[#597365]">
+                        <span class="mr-2">🔬</span> Sou Biomédico(a)
+                    </button>
+                </div>
+            </section>
+
+            <section id="dashboard" class="hidden">
+                <div class="bg-white/60 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-lg">
+                    <nav class="flex flex-wrap justify-center border-b-2 border-gray-200 mb-6 -mt-2">
+                        <button data-tab="overview" class="tab-btn text-gray-500 py-3 px-4 md:px-6 font-semibold border-b-2 border-transparent hover:border-gray-400 transition-colors">Visão Geral</button>
+                        <button data-tab="market" class="tab-btn text-gray-500 py-3 px-4 md:px-6 font-semibold border-b-2 border-transparent hover:border-gray-400 transition-colors">Mercado</button>
+                        <button data-tab="salaries" class="tab-btn text-gray-500 py-3 px-4 md:px-6 font-semibold border-b-2 border-transparent hover:border-gray-400 transition-colors">Salários</button>
+                        <button data-tab="col" class="tab-btn text-gray-500 py-3 px-4 md:px-6 font-semibold border-b-2 border-transparent hover:border-gray-400 transition-colors">Custo de Vida</button>
+                        <button data-tab="simulator" class="tab-btn text-gray-500 py-3 px-4 md:px-6 font-semibold border-b-2 border-transparent hover:border-gray-400 transition-colors">Simulador</button>
+                    </nav>
+
+                    <div id="content-panels">
+                        <div id="overview-panel" class="tab-content"></div>
+                        <div id="market-panel" class="tab-content hidden"></div>
+                        <div id="salaries-panel" class="tab-content hidden">
+                            <p class="text-center text-gray-600 mb-4">Análise comparativa das faixas salariais. Passe o mouse sobre as barras para ver os valores detalhados.</p>
+                            <div class="chart-container">
+                                <canvas id="salaryChart"></canvas>
+                            </div>
+                        </div>
+                        <div id="col-panel" class="tab-content hidden">
+                             <p class="text-center text-gray-600 mb-4">O custo de vida é um fator decisivo. Veja a comparação dos gastos essenciais mensais entre as duas cidades.</p>
+                            <div class="chart-container">
+                                <canvas id="colChart"></canvas>
+                            </div>
+                        </div>
+                        <div id="simulator-panel" class="tab-content hidden"></div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="recommendation" class="hidden mt-12">
+                 <div class="bg-white/60 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-4">Conclusão e Recomendação</h2>
+                    <div id="recommendation-content" class="text-lg text-center max-w-4xl mx-auto"></div>
+                 </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        const reportData = {
+            programmer: {
+                salaries: {
+                    poa: { junior: 3000, pleno: 7000, senior: 16000, teto: 28000 },
+                    jvl: { junior: 3000, pleno: 6500, senior: 9000, teto: 15000 }
+                },
+                marketInfo: {
+                    poa: {
+                        title: 'Polo Maduro e Diversificado',
+                        icon: '🏙️',
+                        details: [
+                            'Ecossistema tecnológico de grande porte e estabelecido.',
+                            'Alto volume de vagas em múltiplas plataformas.',
+                            'Forte demanda por Java, .NET Sênior, Full Stack, Python e DevOps.',
+                            'Presença de grandes consultorias e projetos complexos (SAP).',
+                            'Ideal para quem busca amplitude de carreira e variedade de tecnologias.'
+                        ]
+                    },
+                    jvl: {
+                        title: 'Nicho Industrial e Especializado',
+                        icon: '🏭',
+                        details: [
+                            'Cenário tecnológico moldado pela forte base industrial.',
+                            'Demanda especializada para Programador CNC e CLP.',
+                            'Nicho bem remunerado em sistemas ERP (Oracle APEX até R$ 15.000).',
+                            'Mercado em crescimento para Full Stack, Java, React e Node.js.',
+                            'Ideal para especialistas em automação ou quem busca otimização financeira.'
+                        ]
+                    }
+                },
+                overview: {
+                    poa: "Porto Alegre oferece um ecossistema tecnológico vasto e diversificado, com um grande número de oportunidades em diferentes tecnologias. É a escolha ideal para quem busca variedade e crescimento em um grande centro urbano, mas esteja preparado para um custo de vida significativamente mais alto.",
+                    jvl: "Joinville se destaca pelo poder de compra superior, impulsionado por um custo de vida mais baixo. O mercado de TI, embora menor, é forte em nichos industriais e de sistemas ERP, oferecendo salários competitivos. É a cidade perfeita para quem prioriza bem-estar financeiro e qualidade de vida."
+                },
+                recommendation: "A escolha representa um claro trade-off estratégico. <strong>Porto Alegre</strong> é recomendada para quem prioriza a <strong>amplitude da carreira</strong> e o acesso a um ecossistema tecnológico maior, desde que consiga um salário elevado para compensar o alto custo de vida. <strong>Joinville</strong> é inequivocamente a melhor opção para quem busca <strong>bem-estar financeiro</strong>, maior poder de compra e qualidade de vida, especialmente para especialistas em tecnologias industriais."
+            },
+            biomedical: {
+                salaries: {
+                    poa: { junior: 3361, pleno: 3456, senior: 5905, teto: 5905 },
+                    jvl: { junior: 3000, pleno: 3600, senior: 5692, teto: 6255 }
+                },
+                marketInfo: {
+                    poa: {
+                        title: 'Polo de Saúde e Pesquisa',
+                        icon: '🏥',
+                        details: [
+                            'Vasta infraestrutura de saúde com alto volume de vagas.',
+                            'Oportunidades concentradas em ambientes clínicos e hospitalares.',
+                            'Funções comuns: Analista Clínico, Assistente de Coleta, Macroscopista.',
+                            'Existência de contratos temporários no setor público municipal.',
+                            'Mercado amplo, porém com remuneração média mais baixa.'
+                        ]
+                    },
+                    jvl: {
+                        title: 'Oportunidade Pública e Nicho de Estética',
+                        icon: '✨',
+                        details: [
+                            'Destaque para concurso público com salário inicial de R$ 6.255.',
+                            'Forte e consolidado mercado de biomedicina estética (Aplicadora de Laser).',
+                            'Setor privado clínico com salários mais modestos (R$ 3.000 - R$ 3.600).',
+                            'A oportunidade no setor público redefine a proposta de valor da cidade.',
+                            'Ideal para quem busca estabilidade, alta remuneração ou atuar com estética.'
+                        ]
+                    }
+                },
+                 overview: {
+                    poa: "Como uma grande capital, Porto Alegre possui um vasto mercado na área da saúde, com um número elevado de vagas em laboratórios e hospitais. No entanto, o salário médio da categoria pode ser insuficiente para cobrir o alto custo de vida da cidade, tornando-a uma escolha financeiramente desafiadora.",
+                    jvl: "Joinville apresenta uma proposta de valor transformadora para biomédicos. A existência de um concurso público com salário inicial de mais de R$ 6.200, somada ao custo de vida muito menor, cria um cenário financeiro extremamente favorável. Além disso, há um nicho de mercado aquecido na área de estética."
+                },
+                recommendation: "A recomendação é mais definitiva. <strong>Joinville</strong> apresenta o pacote de valor mais atraente. A oportunidade de uma posição no <strong>setor público com salário inicial superior a R$ 6.200</strong> é um diferencial financeiro que o mercado de Porto Alegre não iguala. Adicionalmente, o nicho de <strong>biomedicina estética</strong> é mais ativo. <strong>Porto Alegre</strong> torna-se uma opção viável apenas para quem valoriza o volume de vagas acima da recompensa financeira e estabilidade, ciente do desafio que o alto custo de vida impõe sobre o salário médio da profissão."
+            },
+            common: {
+                costOfLiving: {
+                    poa: { rent: 1900, groceries: 780, utilities: 450, transport: 220, total: 3350 },
+                    jvl: { rent: 1650, groceries: 340, utilities: 412, transport: 275, total: 2677 }
+                }
+            }
+        };
+
+        let currentState = {
+            profession: null,
+            activeTab: 'overview',
+        };
+
+        let salaryChartInstance = null;
+        let colChartInstance = null;
+        let simulatorChartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnProgrammer = document.getElementById('btn-programmer');
+            const btnBiomedical = document.getElementById('btn-biomedical');
+            const dashboard = document.getElementById('dashboard');
+            const recommendation = document.getElementById('recommendation');
+            const tabs = document.querySelectorAll('.tab-btn');
+
+            btnProgrammer.addEventListener('click', () => selectProfession('programmer'));
+            btnBiomedical.addEventListener('click', () => selectProfession('biomedical'));
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => selectTab(tab.dataset.tab));
+            });
+        });
+
+        function selectProfession(profession) {
+            currentState.profession = profession;
+            document.getElementById('btn-programmer').classList.toggle('selected', profession === 'programmer');
+            document.getElementById('btn-biomedical').classList.toggle('selected', profession === 'biomedical');
+            
+            dashboard.classList.remove('hidden');
+            recommendation.classList.remove('hidden');
+            
+            selectTab('overview');
+            renderDashboard();
+        }
+
+        function selectTab(tabName) {
+            currentState.activeTab = tabName;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+
+            document.querySelectorAll('.tab-content').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+
+            const activePanel = document.getElementById(`${tabName}-panel`);
+            if (activePanel) {
+                activePanel.classList.remove('hidden');
+            }
+        }
+
+        function renderDashboard() {
+            if (!currentState.profession) return;
+            
+            renderOverviewPanel();
+            renderMarketPanel();
+            createSalaryChart();
+            createCoLChart();
+            renderSimulatorPanel();
+            renderRecommendation();
+        }
+
+        function createCard(title, icon, details) {
+            const detailsHtml = details.map(detail => `<li class="flex items-start"><span class="mr-2 mt-1">🔹</span><span>${detail}</span></li>`).join('');
+            return `
+                <div class="bg-[#F0EBE3]/50 p-6 rounded-lg shadow-sm w-full">
+                    <h3 class="text-2xl font-bold mb-4 flex items-center"><span class="text-3xl mr-3">${icon}</span>${title}</h3>
+                    <ul class="space-y-2 text-gray-700">${detailsHtml}</ul>
+                </div>
+            `;
+        }
+
+        function renderOverviewPanel() {
+            const data = reportData[currentState.profession].overview;
+            const panel = document.getElementById('overview-panel');
+            panel.innerHTML = `
+                <p class="text-center text-gray-600 mb-8 text-lg">Um resumo estratégico para guiar sua decisão. Compare os pontos fortes de cada cidade para a sua carreira.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-blue-50 border-l-4 border-[#5A7D9A] p-6 rounded-r-lg">
+                        <h3 class="text-2xl font-bold text-[#5A7D9A] mb-2">Porto Alegre 🏙️</h3>
+                        <p class="text-gray-800">${data.poa}</p>
+                    </div>
+                    <div class="bg-green-50 border-l-4 border-[#6B8A7A] p-6 rounded-r-lg">
+                        <h3 class="text-2xl font-bold text-[#6B8A7A] mb-2">Joinville 🏭</h3>
+                        <p class="text-gray-800">${data.jvl}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderMarketPanel() {
+            const data = reportData[currentState.profession].marketInfo;
+            const panel = document.getElementById('market-panel');
+            panel.innerHTML = `
+                 <p class="text-center text-gray-600 mb-8 text-lg">Cada cidade oferece um ecossistema de trabalho distinto. Entenda onde suas habilidades se encaixam melhor.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    ${createCard(`Porto Alegre`, data.poa.icon, data.poa.details)}
+                    ${createCard(`Joinville`, data.jvl.icon, data.jvl.details)}
+                </div>
+            `;
+        }
+
+        function createSalaryChart() {
+            const data = reportData[currentState.profession].salaries;
+            const ctx = document.getElementById('salaryChart').getContext('2d');
+            
+            if (salaryChartInstance) {
+                salaryChartInstance.destroy();
+            }
+
+            salaryChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Pleno', 'Sênior', 'Teto'],
+                    datasets: [
+                        {
+                            label: 'Porto Alegre',
+                            data: [data.poa.pleno, data.poa.senior, data.poa.teto],
+                            backgroundColor: 'rgba(90, 125, 154, 0.7)',
+                            borderColor: 'rgba(90, 125, 154, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Joinville',
+                            data: [data.jvl.pleno, data.jvl.senior, data.jvl.teto],
+                            backgroundColor: 'rgba(107, 138, 122, 0.7)',
+                            borderColor: 'rgba(107, 138, 122, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Comparativo Salarial Mensal (BRL)', font: { size: 18 } },
+                        tooltip: { callbacks: { label: (context) => `R$ ${context.raw.toLocaleString('pt-BR')}` } }
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { callback: (value) => `R$ ${value/1000}k` } } }
+                }
+            });
+        }
+
+        function createCoLChart() {
+            const data = reportData.common.costOfLiving;
+            const ctx = document.getElementById('colChart').getContext('2d');
+            const labels = ['Aluguel', 'Supermercado', 'Utilidades', 'Transporte'];
+            
+            if (colChartInstance) {
+                colChartInstance.destroy();
+            }
+
+            colChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Porto Alegre', 'Joinville'],
+                    datasets: [
+                        { label: 'Aluguel', data: [data.poa.rent, data.jvl.rent], backgroundColor: '#a9c2d7' },
+                        { label: 'Supermercado', data: [data.poa.groceries, data.jvl.groceries], backgroundColor: '#c82d2d' },
+                        { label: 'Utilidades', data: [data.poa.utilities, data.jvl.utilities], backgroundColor: '#d1e0b8' },
+                        { label: 'Transporte', data: [data.poa.transport, data.jvl.transport], backgroundColor: '#f0e391' }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Custo de Vida Essencial Mensal (BRL)', font: { size: 18 } },
+                        tooltip: { callbacks: { label: (context) => `${context.dataset.label}: R$ ${context.raw.toLocaleString('pt-BR')}` } }
+                    },
+                    scales: { 
+                        x: { stacked: true, ticks: { callback: (value) => `R$ ${value.toLocaleString('pt-BR')}` } },
+                        y: { stacked: true }
+                    }
+                }
+            });
+        }
+        
+        function renderSimulatorPanel() {
+            const panel = document.getElementById('simulator-panel');
+            const defaultSalary = reportData[currentState.profession].salaries.pleno;
+            
+            panel.innerHTML = `
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold mb-2">Simulador de Renda Líquida Disponível</h3>
+                    <p class="text-gray-600 mb-6 max-w-2xl mx-auto">Esta é a ferramenta mais importante. Insira seu salário bruto mensal esperado para ver quanto sobraria em cada cidade após os custos essenciais.</p>
+                </div>
+                <div class="max-w-md mx-auto mb-8">
+                    <label for="salary-input" class="block text-center font-semibold text-lg mb-2">Seu Salário Bruto Mensal (BRL):</label>
+                    <input type="range" id="salary-input" min="2000" max="30000" step="500" value="${defaultSalary}" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="text-center text-2xl font-bold mt-2 text-[#3D352E]">R$ <span id="salary-value">${Number(defaultSalary).toLocaleString('pt-BR')}</span></div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6 text-center mb-8">
+                    <div id="poa-result" class="bg-blue-50 p-4 rounded-lg"></div>
+                    <div id="jvl-result" class="bg-green-50 p-4 rounded-lg"></div>
+                </div>
+                <div class="chart-container" style="height: 250px; max-height: 250px;">
+                    <canvas id="simulatorChart"></canvas>
+                </div>
+            `;
+
+            const salaryInput = document.getElementById('salary-input');
+            const salaryValue = document.getElementById('salary-value');
+            
+            salaryInput.addEventListener('input', (e) => {
+                salaryValue.textContent = Number(e.target.value).toLocaleString('pt-BR');
+                updateSimulator(Number(e.target.value));
+            });
+            
+            updateSimulator(defaultSalary);
+        }
+
+        function updateSimulator(grossSalary) {
+            const taxRate = 0.85; 
+            const netSalary = grossSalary * taxRate;
+            
+            const poaCosts = reportData.common.costOfLiving.poa.total;
+            const jvlCosts = reportData.common.costOfLiving.jvl.total;
+
+            const poaDisposable = netSalary - poaCosts;
+            const jvlDisposable = netSalary - jvlCosts;
+
+            document.getElementById('poa-result').innerHTML = createResultCard('Porto Alegre', grossSalary, netSalary, poaCosts, poaDisposable);
+            document.getElementById('jvl-result').innerHTML = createResultCard('Joinville', grossSalary, netSalary, jvlCosts, jvlDisposable);
+            
+            createSimulatorResultChart(poaDisposable, jvlDisposable);
+        }
+        
+        function createResultCard(city, gross, net, costs, disposable) {
+            const color = city === 'Porto Alegre' ? 'text-[#5A7D9A]' : 'text-[#6B8A7A]';
+            const borderColor = city === 'Porto Alegre' ? 'border-[#5A7D9A]' : 'border-[#6B8A7A]';
+            const isDeficit = disposable < 0;
+            const disposableColor = isDeficit ? 'text-red-600' : 'text-green-700';
+            const disposableText = isDeficit ? 'Déficit' : 'Disponível';
+
+            return `
+                <h4 class="text-xl font-bold ${color} mb-3">${city}</h4>
+                <div class="text-left space-y-1 text-sm">
+                    <p>Salário Líquido: <span class="font-semibold">R$ ${net.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></p>
+                    <p>Custos Essenciais: <span class="font-semibold">- R$ ${costs.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></p>
+                </div>
+                <hr class="my-2 ${borderColor}">
+                <p class="text-lg font-bold ${disposableColor}">${disposableText}: R$ ${Math.abs(disposable).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+            `;
+        }
+
+        function createSimulatorResultChart(poa, jvl) {
+            const ctx = document.getElementById('simulatorChart').getContext('2d');
+            if (simulatorChartInstance) {
+                simulatorChartInstance.destroy();
+            }
+            simulatorChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Renda Disponível'],
+                    datasets: [
+                        { label: 'Porto Alegre', data: [poa > 0 ? poa : 0], backgroundColor: 'rgba(90, 125, 154, 0.7)', borderWidth: 1 },
+                        { label: 'Joinville', data: [jvl > 0 ? jvl : 0], backgroundColor: 'rgba(107, 138, 122, 0.7)', borderWidth: 1 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Comparativo de Renda Líquida Disponível', font: { size: 16 } },
+                        tooltip: { callbacks: { label: (context) => `R$ ${context.raw.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` } }
+                    },
+                    scales: { x: { beginAtZero: true, ticks: { callback: (value) => `R$ ${value.toLocaleString('pt-BR')}` } } }
+                }
+            });
+        }
+        
+        function renderRecommendation() {
+            const content = document.getElementById('recommendation-content');
+            content.innerHTML = reportData[currentState.profession].recommendation;
+        }
+
+    </script>
+</body>
+</html>
